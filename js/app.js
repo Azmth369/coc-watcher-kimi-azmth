@@ -2649,21 +2649,37 @@ async function deleteConversationById(id){
   }catch(e){ console.warn('[chat-history] delete error:', e.message); }
 }
 
-// --- Pinning: the chats table has no pinned column, so this is tracked
-// locally per-browser, scoped by clan tag. Pinned chats float to the top.
+// --- Pinning: stored per-browser and scoped by clan tag.
 function pinnedKey(){ return `warroom_pinned_${state.clanTag || 'default'}`; }
 function getPinnedIds(){
-  try{ return JSON.parse(localStorage.getItem(pinnedKey()) || '[]'); }catch(e){ return []; }
+  try{
+    const saved = JSON.parse(localStorage.getItem(pinnedKey()) || '[]');
+    return Array.isArray(saved) ? saved.filter(id => typeof id === 'string') : [];
+  }catch(e){
+    console.warn('[chat-pin] Could not read pinned chats:', e.message);
+    return [];
+  }
 }
-function isPinned(id){ return getPinnedIds().includes(id); }
+function isPinned(id){ return getPinnedIds().includes(String(id)); }
 function setPinned(id, pinned){
-  let ids = getPinnedIds();
-  if(pinned && !ids.includes(id)) ids.push(id);
-  if(!pinned) ids = ids.filter(x => x !== id);
-  try{ localStorage.setItem(pinnedKey(), JSON.stringify(ids)); }catch(e){}
+  const chatId = String(id || '');
+  if(!chatId) return false;
+  const ids = getPinnedIds();
+  const next = pinned
+    ? [...ids.filter(existingId => existingId !== chatId), chatId]
+    : ids.filter(existingId => existingId !== chatId);
+  try{
+    localStorage.setItem(pinnedKey(), JSON.stringify(next));
+    return true;
+  }catch(e){
+    console.warn('[chat-pin] Could not save pinned chats:', e.message);
+    setChatSaveError('Pin changes could not be saved in this browser. Check browser storage settings.');
+    return false;
+  }
 }
 function togglePinned(id){
-  setPinned(id, !isPinned(id));
+  const nextPinned = !isPinned(id);
+  if(!setPinned(id, nextPinned)) return;
   renderChatSidebarList();
 }
 
@@ -2692,7 +2708,7 @@ function renderChatSidebarList(){
         <div class="ch-date">${esc(dateLabel)}</div>
       </div>
       <div class="ch-btns">
-        <button class="ch-pin${pinnedNow ? ' pinned' : ''}" data-id="${esc(c.id)}" title="${pinnedNow ? 'Unpin' : 'Pin'} chat">📌</button>
+        <button type="button" class="ch-pin${pinnedNow ? ' pinned' : ''}" data-id="${esc(c.id)}" aria-pressed="${pinnedNow ? 'true' : 'false'}" title="${pinnedNow ? 'Unpin' : 'Pin'} chat" aria-label="${pinnedNow ? 'Unpin' : 'Pin'} chat">📌</button>
         <button class="ch-delete" data-id="${esc(c.id)}" title="Delete chat">×</button>
       </div>
     </div>`;
