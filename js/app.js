@@ -2686,6 +2686,16 @@ function togglePinned(id){
 function renderChatSidebarList(){
   const list = $('#chatSidebarList');
   if(!list) return;
+  if(!list.dataset.pinHandlerBound){
+    list.dataset.pinHandlerBound = 'true';
+    list.addEventListener('click', (e) => {
+      const pinButton = e.target.closest('.ch-pin');
+      if(!pinButton || !list.contains(pinButton)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      togglePinned(pinButton.dataset.id);
+    });
+  }
   if(chatHistoryError){
     list.innerHTML = `<div class="save-error" style="padding:8px;">${esc(chatHistoryError)}</div>`;
     return;
@@ -2694,9 +2704,9 @@ function renderChatSidebarList(){
     list.innerHTML = `<div class="chat-history-empty">No saved chats yet — ask something to start one.</div>`;
     return;
   }
-  const pinnedIds = getPinnedIds();
-  const pinned = state.conversations.filter(c => pinnedIds.includes(c.id));
-  const rest = state.conversations.filter(c => !pinnedIds.includes(c.id));
+  const pinnedIds = new Set(getPinnedIds().map(String));
+  const pinned = state.conversations.filter(c => pinnedIds.has(String(c.id)));
+  const rest = state.conversations.filter(c => !pinnedIds.has(String(c.id)));
 
   const renderItem = (c) => {
     const dateLabel = formatDMY(c.updated_at);
@@ -2732,9 +2742,8 @@ function renderChatSidebarList(){
   list.querySelectorAll('.ch-delete').forEach(btn => {
     btn.addEventListener('click', (e) => { e.stopPropagation(); deleteConversationById(btn.dataset.id); });
   });
-  list.querySelectorAll('.ch-pin').forEach(btn => {
-    btn.addEventListener('click', (e) => { e.stopPropagation(); togglePinned(btn.dataset.id); });
-  });
+  // Pin click handling is delegated from the persistent list container.
+  // This avoids relying on per-render button listeners after innerHTML replaces the rows.
 }
 
 function closeChatSidebar(){
