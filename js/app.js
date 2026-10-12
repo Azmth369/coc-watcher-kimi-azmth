@@ -822,8 +822,17 @@ async function loadCwlLeague(tagPath){
 }
 
 function cwlRoundResult(r){
-  if(r.us.stars !== r.opponent.stars) return r.us.stars > r.opponent.stars ? 'win' : 'loss';
-  if(r.us.destruction !== r.opponent.destruction) return r.us.destruction > r.opponent.destruction ? 'win' : 'loss';
+  // History can contain older/incomplete round records. Treat missing sides
+  // as unavailable instead of crashing while reading stars.
+  const us = r?.us;
+  const opponent = r?.opponent;
+  if(!us || !opponent) return 'tie';
+  const usStars = Number(us.stars ?? 0);
+  const opponentStars = Number(opponent.stars ?? 0);
+  if(usStars !== opponentStars) return usStars > opponentStars ? 'win' : 'loss';
+  const usDestruction = Number(us.destruction ?? 0);
+  const opponentDestruction = Number(opponent.destruction ?? 0);
+  if(usDestruction !== opponentDestruction) return usDestruction > opponentDestruction ? 'win' : 'loss';
   return 'tie';
 }
 
@@ -1459,21 +1468,25 @@ function renderCwl(){
   } else {
     const stateClass = { inWar:'ws-inWar', warEnded:'ws-warEnded', preparation:'ws-preparation' };
     const stateLabel = { inWar:'Battle Day', warEnded:'War Ended', preparation:'Preparation Day' };
-    const rows = cwl.rounds.map(r => {
+    const rows = cwl.rounds.filter(r => r?.us && r?.opponent).map(r => {
       const cls = stateClass[r.state] || 'ws-none';
-      const label = stateLabel[r.state] || r.state;
+      const label = stateLabel[r.state] || r.state || 'Unknown';
+      const usStars = Number(r.us.stars ?? 0);
+      const opponentStars = Number(r.opponent.stars ?? 0);
+      const usDestruction = Number(r.us.destruction ?? 0);
+      const opponentDestruction = Number(r.opponent.destruction ?? 0);
       return `
         <div class="war-vs" style="margin-bottom:6px;">
           <div class="war-side">
-            <div class="clan-name">${esc(r.us.name)}</div>
-            <div class="stars">${esc(r.us.stars)}★</div>
-            <div class="destro">${r.us.destruction.toFixed(1)}%</div>
+            <div class="clan-name">${esc(r.us.name || 'Your clan')}</div>
+            <div class="stars">${esc(usStars)}★</div>
+            <div class="destro">${usDestruction.toFixed(1)}%</div>
           </div>
-          <div class="war-mid">Round ${r.round}<br/><span class="war-state ${cls}" style="margin-top:4px;">${esc(label)}</span></div>
+          <div class="war-mid">Round ${esc(r.round ?? '—')}<br/><span class="war-state ${cls}" style="margin-top:4px;">${esc(label)}</span></div>
           <div class="war-side">
-            <div class="clan-name">${esc(r.opponent.name)}</div>
-            <div class="stars">${esc(r.opponent.stars)}★</div>
-            <div class="destro">${r.opponent.destruction.toFixed(1)}%</div>
+            <div class="clan-name">${esc(r.opponent.name || 'Opponent')}</div>
+            <div class="stars">${esc(opponentStars)}★</div>
+            <div class="destro">${opponentDestruction.toFixed(1)}%</div>
           </div>
         </div>`;
     }).join('<hr style="border-color:#262b34;border-style:solid;margin:10px 0;">');
